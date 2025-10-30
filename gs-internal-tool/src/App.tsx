@@ -123,3 +123,157 @@ export default function App() {
           <div className="status-card">
             <span className="status-label">동기화 상태</span>
             <strong>{status}</strong>
+          </div>
+        </div>
+        <div className="hero-illustration" aria-hidden="true">
+          <div className="bubble bubble-lg" />
+          <div className="bubble bubble-md" />
+          <div className="bubble bubble-sm" />
+        </div>
+      </section>
+
+      <section className="filters" aria-label="검색 및 필터">
+        <div className="search-group">
+          <label className="input-label" htmlFor="searchInput">검색</label>
+          <input
+            id="searchInput"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="코드, 제품명 또는 규격을 입력하세요"
+          />
+        </div>
+        <div className="category-group">
+          <div className="group-header">
+            <span className="input-label">품목</span>
+            <button
+              type="button"
+              className="clear-button button-base"
+              onClick={() => { setCategory(""); setPage(1); }}
+              disabled={!category}
+            >
+              전체 보기
+            </button>
+          </div>
+          <div className="chip-row">
+            {allCategories.map((c) => {
+              const label = CATEGORY_LABEL[c] || c;
+              const active = category === c;
+              return (
+                <button
+                  key={c}
+                  className={`chip button-base${active ? " active" : ""}`}
+                  type="button"
+                  onClick={() => { setCategory(active ? "" : c); setPage(1); }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="column-toggle">
+          <details>
+            <summary>표시열 선택</summary>
+            <div className="column-grid">
+              {["code","name","size","deal","discountRate","cost","online","naver","eleven"].map((k) => (
+                <label key={k}>
+                  <input type="checkbox" checked={visible.has(k)} onChange={() => toggleVisible(k)} />
+                  <span>{k}</span>
+                </label>
+              ))}
+              {columns.map((c) => (
+                <label key={c.key}>
+                  <input
+                    type="checkbox"
+                    checked={visible.has(c.key)}
+                    onChange={() => toggleVisible(c.key)}
+                  />
+                  <span title={`${c.top}/${c.bottom}`}>{c.label || c.bottom || `열${c.index+1}`}</span>
+                </label>
+              ))}
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section className="table-section">
+        <header className="table-header">
+          <div>
+            <h2>제품 목록</h2>
+            <p>정렬하려는 열을 클릭하면 오름차순/내림차순으로 전환됩니다.</p>
+          </div>
+          <div className="meta">총 {filtered.length}건</div>
+        </header>
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                {["code","name","size","deal","discountRate","cost","online","naver","eleven"]
+                  .filter((k) => visible.has(k))
+                  .map((k) => (
+                    <th
+                      key={k}
+                      onClick={() => setSort(k)}
+                      className="sortable"
+                      scope="col"
+                    >
+                      {k}
+                      {sortKey===k && (
+                        <span className="sort-indicator" aria-hidden="true">{sortDir==="asc"?"▲":"▼"}</span>
+                      )}
+                    </th>
+                  ))}
+                {columns.filter(c => visible.has(c.key)).map((c) => (
+                  <th key={c.key} scope="col">
+                    {c.label || c.bottom || `열${c.index+1}`}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((row, i) => (
+                <tr key={row.code ?? i}>
+                  {["code","name","size","deal","discountRate","cost","online","naver","eleven"]
+                    .filter((k) => visible.has(k))
+                    .map((k) => (
+                      <td key={k} data-label={k}>
+                        {k==="discountRate" ? (row[k] ? (row[k]*100).toFixed(1)+"%" : "0%") : String(row[k] ?? "")}
+                      </td>
+                    ))}
+                  {columns.filter(c => visible.has(c.key)).map((c) => (
+                    <td key={c.key} data-label={c.label || c.bottom || `열${c.index+1}`}>
+                      {String(row._raw?.[c.index] ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+
+              {pageItems.length===0 && (
+                <tr>
+                  <td colSpan={99} className="empty">조건에 맞는 데이터가 없습니다.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="pagination">
+          <button
+            className="button-base pagination-button"
+            onClick={() => setPage(p => Math.max(1, p-1))}
+            disabled={page<=1}
+          >
+            이전
+          </button>
+          <span>페이지 {page} / {totalPages}</span>
+          <button
+            className="button-base pagination-button"
+            onClick={() => setPage(p => Math.min(totalPages, p+1))}
+            disabled={page>=totalPages}
+          >
+            다음
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
