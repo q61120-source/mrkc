@@ -118,7 +118,7 @@ export default function App() {
           <a href="#" onClick={(e) => e.preventDefault()}>데이터 허브</a>
           <a href="#" onClick={(e) => e.preventDefault()}>지원</a>
         </nav>
-        <button className="profile-button" type="button" aria-label="사용자 메뉴">
+        <button className="profile-button button-base" type="button" aria-label="사용자 메뉴">
           <span className="profile-avatar">GS</span>
           <span className="profile-name">운영팀</span>
         </button>
@@ -160,7 +160,7 @@ export default function App() {
             <span className="input-label">품목</span>
             <button
               type="button"
-              className="clear-button"
+              className="clear-button button-base"
               onClick={() => { setCategory(""); setPage(1); }}
               disabled={!category}
             >
@@ -174,7 +174,7 @@ export default function App() {
               return (
                 <button
                   key={c}
-                  className={`chip ${active ? "active" : ""}`}
+                  className={`chip button-base${active ? " active" : ""}`}
                   type="button"
                   onClick={() => { setCategory(active ? "" : c); setPage(1); }}
                 >
@@ -270,9 +270,21 @@ export default function App() {
           </table>
         </div>
         <div className="pagination">
-          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page<=1}>이전</button>
+          <button
+            className="button-base pagination-button"
+            onClick={() => setPage(p => Math.max(1, p-1))}
+            disabled={page<=1}
+          >
+            이전
+          </button>
           <span>페이지 {page} / {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages}>다음</button>
+          <button
+            className="button-base pagination-button"
+            onClick={() => setPage(p => Math.min(totalPages, p+1))}
+            disabled={page>=totalPages}
+          >
+            다음
+          </button>
         </div>
       </section>
     </div>

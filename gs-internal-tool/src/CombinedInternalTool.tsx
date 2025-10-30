@@ -40,6 +40,12 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const cx = (...a: (string | false | undefined)[]) => a.filter(Boolean).join(" ");
 const card = "bg-white rounded-2xl border border-slate-200 shadow-sm";
+const buttonBaseClass =
+  "flex items-center gap-2 px-[11px] py-[7px] rounded-[10px] text-[15px] leading-[146.7%] tracking-[0.144px] font-medium transition-colors disabled:opacity-50";
+const buttonStyle: React.CSSProperties = {
+  fontFeatureSettings: "'ss10' on",
+  fontFamily: '"Pretendard JP", "Pretendard Variable", "Noto Sans KR", sans-serif',
+};
 
 /* ───────────────────────── 작은 UI 조각 ───────────────────────── */
 
@@ -102,11 +108,8 @@ function Btn({
   };
   return (
     <button
-      className={cx(
-        "h-9 px-3.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50",
-        tones[tone][variant],
-        className
-      )}
+      className={cx(buttonBaseClass, "justify-center", tones[tone][variant], className)}
+      style={buttonStyle}
       {...p}
     />
   );
@@ -136,9 +139,11 @@ function Sidebar({
     <button
       onClick={() => setTab(id)}
       className={cx(
-        "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-slate-100",
-        tab === id && "bg-slate-900 text-white hover:bg-slate-900"
+        buttonBaseClass,
+        "w-full justify-start hover:bg-slate-100",
+        tab === id ? "bg-slate-900 text-white hover:bg-slate-900" : "text-slate-600"
       )}
+      style={buttonStyle}
     >
       {icon}
       {label}
@@ -276,7 +281,8 @@ function ProductList({ items, columns, status }: { items: AnyRow[]; columns: Col
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">품목</span>
               <button
-                className="text-xs font-semibold text-blue-600 hover:text-blue-500"
+                className={cx(buttonBaseClass, "bg-transparent text-blue-600 hover:text-blue-500")}
+                style={buttonStyle}
                 onClick={() => setCategory("")}
                 disabled={!category}
               >
@@ -291,11 +297,12 @@ function ProductList({ items, columns, status }: { items: AnyRow[]; columns: Col
                     key={c}
                     onClick={() => setCategory(active ? "" : c)}
                     className={cx(
-                      "rounded-full border px-3.5 py-1.5 text-sm font-medium transition",
+                      buttonBaseClass,
                       active
-                        ? "border-blue-500 bg-blue-600 text-white shadow"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
+                        ? "border border-blue-500 bg-blue-600 text-white shadow"
+                        : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
                     )}
+                    style={buttonStyle}
                   >
                     {CATEGORY_LABEL[c] || c}
                   </button>
