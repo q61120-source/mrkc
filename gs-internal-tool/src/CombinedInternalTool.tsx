@@ -211,9 +211,13 @@ function ProductList({ items, columns, status }: { items: AnyRow[]; columns: Col
 
   const toggle = (k: string) =>
     setVisible((prev) => {
-      const n = new Set(prev);
-      n.has(k) ? n.delete(k) : n.add(k);
-      return n;
+      const next = new Set(prev);
+      if (next.has(k)) {
+        next.delete(k);
+      } else {
+        next.add(k);
+      }
+      return next;
     });
 
   return (
