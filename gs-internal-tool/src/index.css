@@ -1,15 +1,26 @@
 @import "tailwindcss";
 
-
-
-
-/* 선택: 보조 스타일 */
 html, body {
   height: 100%;
   margin: 0;
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-family: "Pretendard Variable", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-table { font-size: 14px; border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
-th { background-color: #f3f4f6; font-weight: 600; }
+
+body {
+  background-image: radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 55%),
+    radial-gradient(circle at top right, rgba(79, 70, 229, 0.1), transparent 60%);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+}
+
+button, input, select {
+  font-family: inherit;
+}
