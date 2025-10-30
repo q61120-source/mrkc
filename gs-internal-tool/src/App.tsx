@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
 
 type Row = Record<string, any>;
 type ColumnMeta = { key: string; index: number; label: string; top: string; bottom: string };
@@ -42,11 +41,10 @@ export default function App() {
           return;
         }
         setStatus("요청 전송 중 (GET listProducts) …");
-        const res = await axios.get(GAS_URL, {
-          params: { action: "listProducts" },
-          responseType: "text",
-        });
-        const raw = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+        const res = await fetch(`${GAS_URL}?action=listProducts`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        const raw = JSON.parse(text);
         const payload = raw?.data;
         const list: Row[] = payload?.items ?? [];
         const cols: ColumnMeta[] = payload?.columns ?? [];
@@ -72,20 +70,7 @@ export default function App() {
   }, [items, search, category]);
 
   // 정렬
-  const sorted = useMemo(() => {
-    const arr = [...filtered];
-    arr.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === "number" && typeof bv === "number") return sortDir === "asc" ? av - bv : bv - av;
-      return (String(av ?? "")).localeCompare(String(bv ?? ""), "ko") * (sortDir === "asc" ? 1 : -1);
-    });
-    return arr;
-  }, [filtered, sortKey, sortDir]);
-
-  // 페이지
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const pageItems = useMemo(() => sorted.slice((page - 1) * pageSize, page * pageSize), [sorted, page]);
+@@ -89,138 +87,206 @@ export default function App() {
 
   const toggleVisible = (k: string) => {
     setVisible((prev) => {
@@ -111,116 +96,30 @@ export default function App() {
   }, [items]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
-      <h1 style={{ fontSize: 36, margin: "4px 0 8px" }}>📦 제품 리스트 (Google Sheets 연동)</h1>
-      <div style={{ marginBottom: 12, color: "#666" }}>상태: {status}</div>
+    <div className="app-shell">
+      <header className="top-nav">
+        <div className="brand">GS Internal</div>
+        <nav className="nav-links" aria-label="주요 링크">
+          <a href="#" onClick={(e) => e.preventDefault()}>대시보드</a>
+          <a href="#" onClick={(e) => e.preventDefault()}>제품</a>
+          <a href="#" onClick={(e) => e.preventDefault()}>데이터 허브</a>
+          <a href="#" onClick={(e) => e.preventDefault()}>지원</a>
+        </nav>
+        <button className="profile-button button-base" type="button" aria-label="사용자 메뉴">
+          <span className="profile-avatar">GS</span>
+          <span className="profile-name">운영팀</span>
+        </button>
+      </header>
 
-      {/* Toolbar */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-        <input
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          placeholder="코드/명칭/규격 검색"
-          style={{ padding: "8px 10px", minWidth: 240, border: "1px solid #ddd", borderRadius: 8 }}
-        />
-        <select
-          value={category}
-          onChange={(e) => { setCategory(e.target.value); setPage(1); }}
-          style={{ padding: "8px 10px", border: "1px solid #ddd", borderRadius: 8 }}
-        >
-          <option value="">전체 품목</option>
-          {allCategories.map((c) => (
-            <option key={c} value={c}>
-              {CATEGORY_LABEL[c] || c}
-            </option>
-          ))}
-        </select>
-
-        {/* 표시열 토글 */}
-        <details>
-          <summary style={{ cursor: "pointer" }}>표시열 선택</summary>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(180px, 1fr))", gap: 6, paddingTop: 8 }}>
-            {/* 표준 필드 */}
-            {["code","name","size","deal","discountRate","cost","online","naver","eleven"].map((k) => (
-              <label key={k} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input type="checkbox" checked={visible.has(k)} onChange={() => toggleVisible(k)} />
-                <span>{k}</span>
-              </label>
-            ))}
-            {/* 원본 전체 컬럼(합성 헤더)도 토글 가능 */}
-            {columns.map((c) => (
-              <label key={c.key} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={visible.has(c.key)}
-                  onChange={() => toggleVisible(c.key)}
-                />
-                <span title={`${c.top}/${c.bottom}`}>{c.label || c.bottom || `열${c.index+1}`}</span>
-              </label>
-            ))}
-          </div>
-        </details>
-      </div>
-
-      {/* Table */}
-      <div style={{ overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              {/* 표준 필드 헤더 */}
-              {["code","name","size","deal","discountRate","cost","online","naver","eleven"]
-                .filter((k) => visible.has(k))
-                .map((k) => (
-                  <th
-                    key={k}
-                    onClick={() => setSort(k)}
-                    style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #eee", cursor: "pointer", whiteSpace: "nowrap" }}
-                  >
-                    {k}{sortKey===k ? (sortDir==="asc"?" ▲":" ▼") : ""}
-                  </th>
-                ))}
-              {/* 추가(원본) 컬럼 헤더 */}
-              {columns.filter(c => visible.has(c.key)).map((c) => (
-                <th key={c.key} style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #eee", whiteSpace: "nowrap" }}>
-                  {c.label || c.bottom || `열${c.index+1}`}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((row, i) => (
-              <tr key={row.code ?? i} style={{ borderTop: "1px solid #f3f4f6" }}>
-                {/* 표준 필드 값 */}
-                {["code","name","size","deal","discountRate","cost","online","naver","eleven"]
-                  .filter((k) => visible.has(k))
-                  .map((k) => (
-                    <td key={k} style={{ padding: "8px 12px", borderBottom: "1px solid #f8fafc" }}>
-                      {k==="discountRate" ? (row[k] ? (row[k]*100).toFixed(1)+"%" : "0%") : String(row[k] ?? "")}
-                    </td>
-                  ))}
-
-                {/* 추가(원본) 컬럼 값: _raw + columns.index 이용 */}
-                {columns.filter(c => visible.has(c.key)).map((c) => (
-                  <td key={c.key} style={{ padding: "8px 12px", borderBottom: "1px solid #f8fafc" }}>
-                    {String(row._raw?.[c.index] ?? "")}
-                  </td>
-                ))}
-              </tr>
-            ))}
-
-            {pageItems.length===0 && (
-              <tr><td colSpan={99} style={{ padding: 20, color: "#999" }}>조건에 맞는 데이터가 없습니다.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
-        <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page<=1}>이전</button>
-        <div>페이지 {page} / {totalPages}</div>
-        <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages}>다음</button>
-      </div>
-    </div>
-  );
-}
+      <section className="hero">
+        <div className="hero-content">
+          <span className="hero-pill">실시간 Google Sheets 동기화</span>
+          <h1>
+            주방 제품 재고와 가격을 <br />한 곳에서 빠르게 관리하세요
+          </h1>
+          <p>
+            최신 시트 데이터를 기반으로 제품 판매 정보를 탐색하고, 필요한 항목만 필터링하여 빠르게 비교할 수 있습니다.
+          </p>
+          <div className="status-card">
+            <span className="status-label">동기화 상태</span>
+            <strong>{status}</strong>
