@@ -206,12 +206,6 @@ function ProductList({ items, columns }: { items: AnyRow[]; columns: ColumnMeta[
     });
   }, [items, q, category]);
 
-  const toggle = (k: string) =>
-    setVisible((prev) => {
-      const n = new Set(prev);
-      n.has(k) ? n.delete(k) : n.add(k);
-      return n;
-    });
 
   return (
     <div className="max-w-[1280px] mx-auto px-6 py-6 space-y-4">
