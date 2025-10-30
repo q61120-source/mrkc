@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
-import axios from "axios";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 
 
@@ -41,6 +40,12 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const cx = (...a: (string | false | undefined)[]) => a.filter(Boolean).join(" ");
 const card = "bg-white rounded-2xl border border-slate-200 shadow-sm";
+const buttonBaseClass =
+  "flex items-center gap-2 px-[11px] py-[7px] rounded-[10px] text-[15px] leading-[146.7%] tracking-[0.144px] font-medium transition-colors disabled:opacity-50";
+const buttonStyle: React.CSSProperties = {
+  fontFeatureSettings: "'ss10' on",
+  fontFamily: '"Pretendard JP", "Pretendard Variable", "Noto Sans KR", sans-serif',
+};
 
 /* ───────────────────────── 작은 UI 조각 ───────────────────────── */
 
@@ -66,18 +71,7 @@ function Badge({
 }
 
 function Btn({
-  variant = "solid",
-  tone = "slate",
-  className,
-  ...p
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "solid" | "outline" | "ghost";
-  tone?: "slate" | "black" | "green" | "red" | "blue";
-}) {
-  const tones: Record<string, { solid: string; outline: string; ghost: string }> = {
-    slate: {
-      solid: "bg-slate-900 text-white hover:bg-slate-800",
-      outline: "border border-slate-300 text-slate-700 hover:bg-slate-50",
+@@ -81,230 +86,345 @@ function Btn({
       ghost: "text-slate-700 hover:bg-slate-100",
     },
     black: {
@@ -103,11 +97,8 @@ function Btn({
   };
   return (
     <button
-      className={cx(
-        "h-9 px-3.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50",
-        tones[tone][variant],
-        className
-      )}
+      className={cx(buttonBaseClass, "justify-center", tones[tone][variant], className)}
+      style={buttonStyle}
       {...p}
     />
   );
@@ -137,9 +128,11 @@ function Sidebar({
     <button
       onClick={() => setTab(id)}
       className={cx(
-        "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-slate-100",
-        tab === id && "bg-slate-900 text-white hover:bg-slate-900"
+        buttonBaseClass,
+        "w-full justify-start hover:bg-slate-100",
+        tab === id ? "bg-slate-900 text-white hover:bg-slate-900" : "text-slate-600"
       )}
+      style={buttonStyle}
     >
       {icon}
       {label}
@@ -184,12 +177,11 @@ function Topbar({
 
 /* ───────────────────────── 제품 리스트 ───────────────────────── */
 
-function ProductList({ items, columns }: { items: AnyRow[]; columns: ColumnMeta[] }) {
+function ProductList({ items, columns, status }: { items: AnyRow[]; columns: ColumnMeta[]; status: string }) {
+  const baseColumns = ["code", "name", "size", "deal", "online", "cost"] as const;
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("");
-  const [visible, setVisible] = useState<Set<string>>(
-    new Set(["code", "name", "size", "deal", "online", "cost"])
-  );
+  const [visible, setVisible] = useState<Set<string>>(new Set(baseColumns));
 
   const cats = useMemo(() => {
     const s = new Set<string>();
@@ -206,77 +198,200 @@ function ProductList({ items, columns }: { items: AnyRow[]; columns: ColumnMeta[
     });
   }, [items, q, category]);
 
+  const toggle = (k: string) =>
+    setVisible((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) {
+        next.delete(k);
+      } else {
+        next.add(k);
+      }
+      return next;
+    });
 
   return (
-    <div className="max-w-[1280px] mx-auto px-6 py-6 space-y-4">
-      {/* 컨트롤 바 */}
-      <div className={cx(card, "p-4")}>
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="검색">
+    <div className="max-w-[1280px] mx-auto px-6 py-8 space-y-6">
+      <section className="relative overflow-hidden rounded-[32px] bg-gradient-to-r from-blue-100 via-blue-50 to-indigo-100">
+        <div className="grid gap-10 p-10 md:grid-cols-[1.25fr_1fr]">
+          <div className="space-y-5">
+            <span className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 px-4 py-1 text-sm font-semibold text-blue-700">
+              <span className="text-base">📦</span>
+              Google Sheets 실시간 연동
+            </span>
+            <h1 className="text-3xl font-bold leading-tight text-slate-900 md:text-[40px]">
+              주방 제품 재고와 가격을 <span className="text-blue-700">한 화면</span>에서 관리하세요
+            </h1>
+            <p className="text-base leading-relaxed text-slate-600">
+              최신 시트 데이터를 기반으로 제품 정보를 빠르게 탐색하고, 필터를 통해 원하는 항목만 추려보세요.
+            </p>
+            <div className="inline-flex flex-col gap-1 rounded-2xl border border-blue-200/60 bg-white/70 px-5 py-4 text-blue-700 shadow-sm backdrop-blur">
+              <span className="text-xs font-semibold uppercase tracking-widest text-blue-500">동기화 상태</span>
+              <span className="text-lg font-semibold text-slate-900">{status}</span>
+            </div>
+          </div>
+          <div className="relative hidden md:block">
+            <div className="absolute -top-6 right-10 h-20 w-52 rounded-3xl border border-white/40 bg-white/60 shadow-lg backdrop-blur" />
+            <div className="absolute top-24 right-2 h-40 w-40 rounded-full bg-blue-200/50 blur-3xl" />
+            <div className="absolute inset-y-8 left-4 w-60 rounded-[28px] border border-blue-200/50 bg-white p-5 shadow-xl">
+              <div className="space-y-3">
+                <div className="h-6 w-28 rounded-full bg-blue-100" />
+                <div className="h-4 w-full rounded-full bg-slate-100" />
+                <div className="h-4 w-11/12 rounded-full bg-slate-100" />
+                <div className="grid gap-2 rounded-2xl bg-slate-50 p-3">
+                  <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                    <span>온라인 판매가</span>
+                    <span className="text-slate-900">₩{won(790000)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+                    <span>도매가</span>
+                    <span className="text-slate-900">₩{won(640000)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-medium text-slate-500">
+                  <span className="rounded-xl bg-blue-50 px-3 py-2 text-blue-700">싱크대</span>
+                  <span className="rounded-xl bg-slate-100 px-3 py-2">가스장비</span>
+                  <span className="rounded-xl bg-slate-100 px-3 py-2">주방키트</span>
+                  <span className="rounded-xl bg-slate-100 px-3 py-2">설비</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 rounded-[28px] border border-slate-200 bg-white p-6 shadow-lg md:grid-cols-[minmax(260px,1fr)_minmax(320px,2fr)]">
+        <div className="space-y-4">
+          <label className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">검색</span>
             <input
-              className={cx(inputBase, "w-80")}
-              placeholder="코드/명칭/규격 검색"
+              className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm shadow-inner focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
+              placeholder="코드, 제품명 또는 규격을 입력하세요"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
-          </Field>
-          <Field label="품목">
-            <select className={inputBase} value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">전체</option>
-              {cats.map((c) => (
-                <option key={c} value={c}>
-                  {CATEGORY_LABEL[c] || c}
-                </option>
-              ))}
-            </select>
-          </Field>
+          </label>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">품목</span>
+              <button
+                className={cx(buttonBaseClass, "bg-transparent text-blue-600 hover:text-blue-500")}
+                style={buttonStyle}
+                onClick={() => setCategory("")}
+                disabled={!category}
+              >
+                전체보기
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {cats.map((c) => {
+                const active = category === c;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setCategory(active ? "" : c)}
+                    className={cx(
+                      buttonBaseClass,
+                      active
+                        ? "border border-blue-500 bg-blue-600 text-white shadow"
+                        : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
+                    )}
+                    style={buttonStyle}
+                  >
+                    {CATEGORY_LABEL[c] || c}
+                  </button>
+                );
+              })}
+              {cats.length === 0 && <span className="text-xs text-slate-400">품목 정보가 없습니다.</span>}
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* 표 */}
-      <div className={cx(card, "overflow-auto")}>
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50">
-            <tr className="text-slate-600">
-              {["code", "name", "size", "deal", "online", "cost"]
-                .filter((k) => visible.has(k))
-                .map((k) => (
-                  <th key={k} className="px-3 py-2 text-left font-semibold border-b">
-                    {k}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">표시할 열 선택</div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-600 md:grid-cols-3">
+              {baseColumns.map((k) => (
+                <label key={k} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    checked={visible.has(k)}
+                    onChange={() => toggle(k)}
+                  />
+                  <span className="capitalize">{k}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {columns.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">시트 원본 컬럼</div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-600 md:grid-cols-3">
+                {columns.map((c) => (
+                  <span key={c.key} className="truncate rounded-xl bg-white px-3 py-2 shadow-sm">
+                    {c.label || c.bottom || `열 ${c.index + 1}`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className={cx(card, "overflow-hidden border border-slate-200 shadow-xl")}> 
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">제품 목록</h2>
+            <p className="text-sm text-slate-500">총 {list.length.toLocaleString()}건의 결과가 있습니다.</p>
+          </div>
+          <Badge tone="blue">표시 중 {visible.size}개 열</Badge>
+        </div>
+        <div className="overflow-auto">
+          <table className="min-w-full border-separate border-spacing-0 text-sm">
+            <thead className="bg-slate-50/80">
+              <tr className="text-slate-600">
+                {baseColumns
+                  .filter((k) => visible.has(k))
+                  .map((k) => (
+                    <th key={k} className="border-b border-slate-200 px-4 py-3 text-left font-semibold capitalize">
+                      {k}
+                    </th>
+                  ))}
+                {columns.map((c) => (
+                  <th key={c.key} className="border-b border-slate-200 px-4 py-3 text-left font-semibold">
+                    {c.label || c.bottom || `열 ${c.index + 1}`}
                   </th>
                 ))}
-              {columns.map((c) => (
-                <th key={c.key} className="px-3 py-2 text-left font-semibold border-b">
-                  {c.label || c.bottom || `열 ${c.index + 1}`}
-                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r, i) => (
+                <tr key={r.code ?? i} className="border-b border-slate-100 transition hover:bg-blue-50/40">
+                  {baseColumns
+                    .filter((k) => visible.has(k))
+                    .map((k) => (
+                      <td key={k} className="px-4 py-3 text-slate-700">
+                        {k === "deal" || k === "online" || k === "cost" ? won(Number(r[k] || 0)) : String(r[k] ?? "")}
+                      </td>
+                    ))}
+                  {columns.map((c) => (
+                    <td key={c.key} className="px-4 py-3 text-slate-600">
+                      {String(r._raw?.[c.index] ?? "")}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((r, i) => (
-              <tr key={r.code ?? i} className="border-t hover:bg-slate-50">
-                {["code", "name", "size", "deal", "online", "cost"].map((k) => (
-                  <td key={k} className="px-3 py-2">
-                    {k === "deal" || k === "online" || k === "cost" ? won(Number(r[k] || 0)) : String(r[k] ?? "")}
+              {list.length === 0 && (
+                <tr>
+                  <td className="px-4 py-10 text-center text-slate-400" colSpan={999}>
+                    조건에 맞는 데이터가 없습니다.
                   </td>
-                ))}
-                {columns.map((c) => (
-                  <td key={c.key} className="px-3 py-2">
-                    {String(r._raw?.[c.index] ?? "")}
-                  </td>
-                ))}
-              </tr>
-            ))}
-            {list.length === 0 && (
-              <tr>
-                <td className="px-4 py-10 text-center text-slate-400" colSpan={999}>
-                  조건에 맞는 데이터가 없습니다.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
@@ -302,371 +417,7 @@ function EstimatePage({ source }: { source: AnyRow[] }) {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return source.filter((x) => `${x.code} ${x.name} ${x.size}`.toLowerCase().includes(q)).slice(0, 30);
-  }, [query, source]);
-
-  const pick = (it: AnyRow, idx: number) => {
-    const next = [...lines];
-    const base = Number(it.deal || it.online || 0);
-    next[idx] = {
-      code: it.code,
-      name: it.name,
-      size: it.size,
-      qty: 1,
-      unitPrice: base,
-      supply: Math.round(base * (1 - discountPct / 100)),
-    };
-    setLines(next);
-    setQuery("");
-  };
-
-  const change = (i: number, patch: Partial<Line>) => {
-    const next = [...lines];
-    next[i] = { ...next[i], ...patch };
-    const L = next[i];
-    L.supply = Math.round((L.unitPrice || 0) * (L.qty || 0) * (1 - discountPct / 100));
-    setLines(next);
-  };
-
-  const total = useMemo(() => lines.reduce((s, l) => s + (l.supply || 0), 0), [lines]);
-
-  return (
-    <div className="max-w-[1280px] mx-auto px-6 py-6 space-y-4">
-      <div className={cx(card, "p-4")}>
-        <div className="flex flex-wrap items-end gap-4">
-          <Field label="거래처(할인율)">
-            <select className={cx(inputBase, "w-60")} value={discountPct} onChange={(e) => setDiscountPct(Number(e.target.value || 0))}>
-              <option value={0}>선택</option>
-              <option value={30}>도매처 예시 - 30%</option>
-              <option value={20}>특약 예시 - 20%</option>
-              <option value={10}>일반 - 10%</option>
-            </select>
-          </Field>
-          <Field label="담당자명">
-            <input className={cx(inputBase, "w-48")} placeholder="홍길동" />
-          </Field>
-        </div>
-      </div>
-
-      {lines.map((L, i) => (
-        <div key={i} className={cx(card)}>
-          <div className="px-4 py-3 border-b flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">{i + 1}</div>
-            <div className="font-semibold">명칭(검색 후 선택)</div>
-            <div className="ml-auto text-slate-400 text-sm">사이즈 · 수량 · 단가 · 공급가 · 비고</div>
-          </div>
-
-          <div className="p-4 space-y-3">
-            <div className="relative">
-              <input
-                className={cx(inputBase, "w-full")}
-                placeholder="명칭/모델/사이즈 검색"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {!!query && (
-                <div className="absolute left-0 right-0 z-20 mt-2 max-h-72 overflow-auto bg-white border rounded-xl shadow-lg">
-                  {results.length === 0 && <div className="px-3 py-2 text-slate-400">검색 결과 없음</div>}
-                  {results.map((r) => (
-                    <div key={r.code} className="px-3 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => pick(r, i)}>
-                      <div className="font-medium">{r.name}</div>
-                      <div className="text-xs text-slate-500">{r.code} · {r.size}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-12 gap-3">
-              <Field label="사이즈">
-                <input className={cx(inputBase, "w-full")} value={L.size || ""} onChange={(e) => change(i, { size: e.target.value })} />
-              </Field>
-              <Field label="수량">
-                <input type="number" className={cx(inputBase, "w-full text-right")} value={L.qty || 0} onChange={(e) => change(i, { qty: Number(e.target.value || 0) })} />
-              </Field>
-              <Field label="단가">
-                <input type="number" className={cx(inputBase, "w-full text-right")} value={L.unitPrice || 0} onChange={(e) => change(i, { unitPrice: Number(e.target.value || 0) })} />
-              </Field>
-              <Field label="공급가">
-                <div className={cx(inputBase, "w-full bg-slate-50 text-right")}>₩{won(L.supply || 0)}</div>
-              </Field>
-              <Field label="비고">
-                <input className={cx(inputBase, "w-full")} value={L.note || ""} onChange={(e) => change(i, { note: e.target.value })} />
-              </Field>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      <div className={cx(card, "p-4 flex items-center gap-2")}>
-        <div className="text-sm text-slate-500">할인율 변경 시 공급가가 자동 갱신됩니다.</div>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-sm text-slate-600">합계 금액</span>
-          <span className="text-xl font-bold tracking-tight w-40 text-right">₩{won(total)}</span>
-          <Btn variant="outline">미리보기</Btn>
-          <Btn tone="black">PDF 저장</Btn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ───────────────────────── 공통: XLSX 저장 유틸 ───────────────────────── */
-
-const downloadXLSX = (headers: string[], rows: AnyRow[], filename: string) => {
-  const aoa: any[][] = [headers];
-  rows.forEach((r) => aoa.push(headers.map((h) => r[h])));
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  XLSX.writeFile(wb, filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`);
-};
-
-/* ───────────────────────── 업로드 센터(가격/옵션 공용) ───────────────────────── */
-
-function UploadCenter({
-  source,
-  mode, // "price" | "option"
-}: {
-  source: AnyRow[];
-  mode: "price" | "option";
-}) {
-  const [preview, setPreview] = useState<{ headers: string[]; rows: AnyRow[] } | null>(null);
-  const [status, setStatus] = useState("파일 업로드 대기");
-  const [errors, setErrors] = useState<Set<string>>(new Set());
-  const [lastFile, setLastFile] = useState<string | null>(null);
-
-  // 파일 입력 직접 클릭용
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const priceMap = useMemo(() => {
-    const m: Record<string, number> = {};
-    source.forEach((x) => (m[x.code] = Number(x.online || x.deal || 0)));
-    return m;
-  }, [source]);
-
-  const onUpload = async (f: File) => {
-    setStatus("읽는 중…");
-
-    const name = f.name.toLowerCase();
-    const isExcel =
-      name.endsWith(".xlsx") ||
-      name.endsWith(".xls") ||
-      f.type.includes("spreadsheet") ||
-      f.type.includes("excel");
-
-    if (isExcel) {
-      const buf = await f.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
-      const wsName = wb.SheetNames[0];
-      const ws = wb.Sheets[wsName];
-
-      const aoa: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
-      if (!aoa || aoa.length === 0) {
-        setStatus("❌ 엑셀 시트가 비어있습니다.");
-        return;
-      }
-      const headers: string[] = (aoa[0] as any[]).map((h) => String(h ?? "").trim());
-      const rows = (aoa.slice(1) as any[]).map((arr: any[]) => {
-        const r: AnyRow = {};
-        headers.forEach((h, i) => (r[h] = arr[i] ?? ""));
-        return r;
-      });
-
-      setPreview({ headers, rows });
-      setErrors(new Set());
-      setStatus(`미리보기 로드 (${wsName})`);
-      setLastFile(f.name);
-      return;
-    }
-
-    // CSV
-    const text = await f.text();
-    const lines = text.split(/\r?\n/);
-    if (!lines.length) {
-      setStatus("❌ CSV가 비어있습니다.");
-      return;
-    }
-    const headers = (lines.shift() || "").split(",").map((s) => s.trim());
-    const rows = lines
-      .filter(Boolean)
-      .map((ln) => {
-        const cols = ln.split(",");
-        const r: AnyRow = {};
-        headers.forEach((h, i) => (r[h] = cols[i] ?? ""));
-        return r;
-      });
-
-    setPreview({ headers, rows });
-    setErrors(new Set());
-    setStatus("미리보기 로드");
-    setLastFile(f.name);
-  };
-
-  const findHeader = (cands: string[]) =>
-    preview ? cands.find((c) => preview.headers.includes(c)) || "" : "";
-
-  // 판매가 계산
-  const applyPrice = () => {
-    if (!preview) return;
-    const skuCol = findHeader(["SKU", "상품코드", "품목코드"]);
-    const priceCol = findHeader(["판매가", "판매가(VAT포함)", "판매가(원)"]);
-    if (!skuCol || !priceCol) {
-      alert("판매가 수정: SKU/판매가 헤더를 찾을 수 없습니다.");
-      return;
-    }
-    const rows = preview.rows.map((r) => {
-      const sku = String(r[skuCol] || "").split("\n")[0].trim();
-      const base = priceMap[sku] ?? priceMap[String(r["code"] || "").trim()];
-      if (base == null) return r;
-      const next = { ...r };
-      next[priceCol] = Math.round(Number(base) / 100) * 100;
-      return next;
-    });
-    setPreview({ headers: preview.headers, rows });
-    setStatus("판매가 업데이트 완료");
-  };
-
-  // 옵션가 계산
-  const applyOption = () => {
-    if (!preview) return;
-    const skuCol = findHeader(["SKU", "상품코드", "품목코드", "상품관리코드", "옵션관리코드"]);
-    const optCol = findHeader(["추가 금액", "옵션가", "옵션 추가금"]);
-    if (!skuCol || !optCol) {
-      alert("옵션가 수정: SKU/옵션가 헤더를 찾을 수 없습니다.");
-      return;
-    }
-    const rows = preview.rows.map((r) => {
-      const raw = String(r[optCol] ?? "").replace(/[^\d.-]/g, "");
-      const n = Number(raw);
-      const next = { ...r };
-      next[optCol] = isFinite(n) && n >= 0 ? Math.round(n / 100) * 100 : 0;
-      return next;
-    });
-    setPreview({ headers: preview.headers, rows });
-    setStatus("옵션가 업데이트 완료");
-  };
-
-  const validate = () => {
-    if (!preview) return;
-    const skuCol = findHeader(["SKU", "상품코드", "품목코드"]);
-    const priceCol =
-      mode === "price"
-        ? findHeader(["판매가", "판매가(VAT포함)", "판매가(원)"])
-        : findHeader(["추가 금액", "옵션가", "옵션 추가금"]);
-    const es = new Set<string>();
-    preview.rows.forEach((r, i) => {
-      const rowIdx = i + 1;
-      const sku = String(r[skuCol] || "").split("\n")[0].trim();
-      if (!sku) es.add(`${rowIdx}:${skuCol}`);
-      const price = Number(String(r[priceCol] || "").replace(/[^\d.-]/g, ""));
-      if (isNaN(price) || price < 0) es.add(`${rowIdx}:${priceCol}`);
-    });
-    setErrors(es);
-    alert(es.size ? `오류 ${es.size}건 (노란칸 표시)` : "오류 없음");
-  };
-
-  const warnCount = useMemo(() => {
-    if (!preview) return 0;
-    const skuCol = findHeader(["SKU", "상품코드", "품목코드"]);
-    let cnt = 0;
-    preview.rows.forEach((r) => {
-      const sku = String(r[skuCol] || "").split("\n")[0].trim();
-      if (sku && priceMap[sku] == null) cnt += 1;
-    });
-    return cnt;
-  }, [preview, priceMap]);
-
-  const errCount = errors.size;
-
-  const saveResult = () => {
-    if (!preview) return;
-    const base = mode === "price" ? "판매가_결과" : "옵션가_결과";
-    const fname = `${base}_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.xlsx`;
-    downloadXLSX(preview.headers, preview.rows, fname);
-  };
-
-  return (
-    <div className="max-w-[1280px] mx-auto px-6 py-6 space-y-4">
-      {/* 상단 툴바: 업로드/계산/검증/저장 각각 버튼 분리 */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* 숨겨진 파일 입력 */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUpload(f);
-          }}
-          style={{ display: "none" }}
-        />
-        {/* 업로드 버튼에서 input 직접 클릭 */}
-        <Btn variant="outline" onClick={() => fileInputRef.current?.click()}>
-          📂 파일 업로드
-        </Btn>
-
-        {mode === "price" ? (
-          <Btn variant="outline" tone="black" onClick={applyPrice}>🧮 판매가 계산</Btn>
-        ) : (
-          <Btn variant="outline" tone="black" onClick={applyOption}>🧮 옵션가 계산</Btn>
-        )}
-
-        <Btn variant="outline" onClick={validate}>✅ 검증</Btn>
-        <Btn tone="blue" onClick={saveResult} disabled={!preview}>💾 결과 XLSX 저장</Btn>
-
-        <div className="ml-auto flex items-center gap-2 text-sm text-slate-600">
-          <span>상태:</span>
-          <Badge tone="slate">{status}</Badge>
-        </div>
-      </div>
-
-      {/* 메트릭 카드 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className={cx(card, "p-4")}>
-          <div className="text-xs text-slate-500">처리 행수</div>
-          <div className="mt-1 text-2xl font-bold">{preview ? `${preview.rows.length}건` : "—"}</div>
-        </div>
-        <div className={cx(card, "p-4")}>
-          <div className="text-xs text-slate-500">경고/오류</div>
-          <div className="mt-1 flex items-center gap-2">
-            <Badge tone="orange">경고 {warnCount}</Badge>
-            <Badge tone="red">오류 {errCount}</Badge>
-          </div>
-        </div>
-        <div className={cx(card, "p-4")}>
-          <div className="text-xs text-slate-500">마지막 파일</div>
-          <div className="mt-1">{lastFile ? <span className="text-blue-600">{lastFile}</span> : <span className="text-slate-400">—</span>}</div>
-        </div>
-      </div>
-
-      {/* 미리보기 표 */}
-      {!preview && <div className="text-slate-400">CSV/XLSX를 업로드하면 미리보기가 표시됩니다.</div>}
-      {preview && (
-        <div className={cx(card, "overflow-auto")}>
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr className="text-slate-600">
-                {preview.headers.map((h) => (
-                  <th key={h} className="px-3 py-2 text-left font-semibold border-b">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {preview.rows.slice(0, 600).map((r, i) => {
-                const isErrorRow = Array.from(errors).some((k) => Number(k.split(":")[0]) === i + 1);
-                return (
-                  <tr key={i} className={cx("border-t", isErrorRow && "bg-amber-50")}>
-                    {preview.headers.map((h) => {
-                      const bad = errors.has(`${i + 1}:${h}`);
-                      return (
-                        <td key={h} className="px-3 py-2" style={{ background: bad ? "#fff59d" : "transparent" }}>
-                          {String(r[h] ?? "")}
-                        </td>
-                      );
+@@ -676,64 +796,66 @@ function UploadCenter({
                     })}
                   </tr>
                 );
@@ -692,8 +443,10 @@ function App() {
     (async () => {
       try {
         setStatus("GAS에서 제품리스트 불러오는 중…");
-        const res = await axios.get(ensureGas(), { params: { action: "listProducts" }, responseType: "text" });
-        const raw: ListProductsEnvelope = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+        const res = await fetch(`${ensureGas()}?action=listProducts`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        const raw: ListProductsEnvelope = JSON.parse(text);
         if (!raw.ok) throw new Error(raw.message || "GAS 오류");
         setItems(raw.data?.items || []);
         setColumns(raw.data?.columns || []);
@@ -720,7 +473,7 @@ function App() {
             right={<Badge tone="slate">{status}</Badge>}
           />
 
-          {tab === "list" && <ProductList items={items} columns={columns} />}
+          {tab === "list" && <ProductList items={items} columns={columns} status={status} />}
           {tab === "estimate" && <EstimatePage source={items} />}
           {tab === "price" && <UploadCenter source={items} mode="price" />}
           {tab === "option" && <UploadCenter source={items} mode="option" />}
