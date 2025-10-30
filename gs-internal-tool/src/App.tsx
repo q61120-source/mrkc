@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-type Row = Record<string, any>;
-type ColumnMeta = { key: string; index: number; label: string; top: string; bottom: string };
+import { fetchProductList, GasConfigError, type ColumnMeta, type ProductRow } from "./lib/gasClient";
 
 const CATEGORY_LABEL: Record<string, string> = {
   WRK: "작업대(WRK)",
@@ -18,7 +17,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 const DEFAULT_KEYS = ["code", "name", "size", "deal", "discountRate", "cost", "online", "naver", "eleven"];
 
 export default function App() {
-  const [items, setItems] = useState<Row[]>([]);
+  const [items, setItems] = useState<ProductRow[]>([]);
   const [columns, setColumns] = useState<ColumnMeta[]>([]);
   const [status, setStatus] = useState("초기화…");
   const [search, setSearch] = useState("");
@@ -31,31 +30,25 @@ export default function App() {
   const [page, setPage] = useState(1);
   const pageSize = 100;
 
-  const GAS_URL = import.meta.env.VITE_GAS_WEBAPP_URL;
-
   useEffect(() => {
+    const ctrl = new AbortController();
     (async () => {
       try {
-        if (!GAS_URL) {
-          setStatus("❌ VITE_GAS_WEBAPP_URL이 비어있음 (.env 확인)");
-          return;
-        }
         setStatus("요청 전송 중 (GET listProducts) …");
-        const res = await fetch(`${GAS_URL}?action=listProducts`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        const raw = JSON.parse(text);
-        const payload = raw?.data;
-        const list: Row[] = payload?.items ?? [];
-        const cols: ColumnMeta[] = payload?.columns ?? [];
-        setItems(list);
-        setColumns(cols);
-        setStatus(`완료: ${list.length}건`);
+        const { payload } = await fetchProductList(ctrl.signal);
+        setItems(payload.items);
+        setColumns(payload.columns);
+        setStatus(`완료: ${payload.items.length}건`);
       } catch (e: any) {
         console.error(e);
-        setStatus("❌ 요청 실패 – 네트워크 응답 확인");
+        if (e instanceof GasConfigError) {
+          setStatus("❌ VITE_GAS_WEBAPP_URL이 비어있음 (.env 확인)");
+        } else {
+          setStatus("❌ 요청 실패 – 네트워크 응답 확인");
+        }
       }
     })();
+    return () => ctrl.abort();
   }, []);
 
   // 필터링

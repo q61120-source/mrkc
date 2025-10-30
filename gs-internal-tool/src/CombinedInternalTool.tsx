@@ -1,29 +1,17 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import * as XLSX from "xlsx";
 
+import {
+  fetchProductList,
+  GasConfigError,
+  type ColumnMeta,
+  type ProductRow,
+} from "./lib/gasClient";
+
 
 /* ───────────────────────── 공통 타입/유틸 ───────────────────────── */
 
-type AnyRow = Record<string, any>;
-type ColumnMeta = { key: string; index: number; label: string; top: string; bottom: string };
-type ListProductsEnvelope = {
-  ok: boolean;
-  data?: {
-    headerTop: string[];
-    headerBottom: string[];
-    header: string[];
-    columns: ColumnMeta[];
-    count: number;
-    items: AnyRow[];
-  };
-  message?: string;
-};
-
-const GAS_URL = import.meta.env?.VITE_GAS_WEBAPP_URL;
-const ensureGas = () => {
-  if (!GAS_URL) throw new Error("❌ .env의 VITE_GAS_WEBAPP_URL이 비어있습니다.");
-  return GAS_URL!;
-};
+type AnyRow = ProductRow;
 const won = (n: number) => (Number(n) || 0).toLocaleString();
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -815,22 +803,24 @@ function App() {
   const [status, setStatus] = useState("초기화…");
 
   useEffect(() => {
+    const ctrl = new AbortController();
     (async () => {
       try {
         setStatus("GAS에서 제품리스트 불러오는 중…");
-        const res = await fetch(`${ensureGas()}?action=listProducts`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        const raw: ListProductsEnvelope = JSON.parse(text);
-        if (!raw.ok) throw new Error(raw.message || "GAS 오류");
-        setItems(raw.data?.items || []);
-        setColumns(raw.data?.columns || []);
-        setStatus(`불러오기 완료: ${raw.data?.count ?? 0}건`);
+        const { payload } = await fetchProductList(ctrl.signal);
+        setItems(payload.items);
+        setColumns(payload.columns);
+        setStatus(`불러오기 완료: ${payload.count}건`);
       } catch (e) {
         console.error(e);
-        setStatus("❌ 연동 실패 – .env/GAS 확인");
+        if (e instanceof GasConfigError) {
+          setStatus("❌ .env의 VITE_GAS_WEBAPP_URL을 설정하세요");
+        } else {
+          setStatus("❌ 연동 실패 – .env/GAS 확인");
+        }
       }
     })();
+    return () => ctrl.abort();
   }, []);
 
   return (
