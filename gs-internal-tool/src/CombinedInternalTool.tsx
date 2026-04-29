@@ -71,7 +71,6 @@ function Badge({
 }
 
 function Btn({
-@@ -81,230 +86,345 @@ function Btn({
       ghost: "text-slate-700 hover:bg-slate-100",
     },
     black: {
@@ -421,7 +420,6 @@ function EstimatePage({ source }: { source: AnyRow[] }) {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-@@ -676,64 +796,66 @@ function UploadCenter({
                     })}
                   </tr>
                 );

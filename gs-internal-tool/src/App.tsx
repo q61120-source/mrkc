@@ -70,7 +70,6 @@ export default function App() {
   }, [items, search, category]);
 
   // 정렬
-@@ -89,138 +87,206 @@ export default function App() {
 
   const toggleVisible = (k: string) => {
     setVisible((prev) => {
