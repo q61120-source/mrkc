@@ -117,14 +117,16 @@ const inputBase =
 
 /* ───────────────────────── 레이아웃 (좌측 네비 + 상단 툴바) ───────────────────────── */
 
+type Tab = "list" | "estimate" | "price" | "option" | "coupang-info";
+
 function Sidebar({
   tab,
   setTab,
 }: {
-  tab: "list" | "estimate" | "price" | "option";
-  setTab: (t: "list" | "estimate" | "price" | "option") => void;
+  tab: Tab;
+  setTab: (t: Tab) => void;
 }) {
-  const Item = (id: "list" | "estimate" | "price" | "option", label: string, icon?: React.ReactNode) => (
+  const Item = (id: Tab, label: string, icon?: React.ReactNode) => (
     <button
       onClick={() => setTab(id)}
       className={cx(
@@ -153,6 +155,8 @@ function Sidebar({
         <div className="mt-4 mb-1 text-[11px] font-semibold text-slate-400 px-2">플레이오토 양식</div>
         {Item("price", "💙 판매가 수정")}
         {Item("option", "💙 옵션가 수정")}
+        <div className="mt-4 mb-1 text-[11px] font-semibold text-slate-400 px-2">쿠팡 양식</div>
+        {Item("coupang-info", "🟡 상품정보 변경")}
       </div>
     </aside>
   );
@@ -431,10 +435,284 @@ function EstimatePage({ source }: { source: AnyRow[] }) {
 }
 
 
+/* ───────────────────────── 쿠팡 상품정보 변경 ───────────────────────── */
+
+function tokenize(s: string): string[] {
+  return s
+    .replace(/[()【】[\]\/\\,·\-_]/g, ' ')
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(Boolean);
+}
+
+function buildMatchKey(exposedName: string, ...opts: string[]): string {
+  const tokens = tokenize([exposedName, ...opts].filter(Boolean).join(' '));
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const t of tokens) {
+    const k = t.toLowerCase();
+    if (!seen.has(k)) { seen.add(k); result.push(t); }
+  }
+  return result.join(' ');
+}
+
+function skuSimilarity(matchKey: string, product: AnyRow): number {
+  const coupangSet = new Set(tokenize(matchKey).map(t => t.toLowerCase()));
+  const productText = `${product.name ?? ''} ${product.size ?? ''}`;
+  const productTokens = tokenize(productText).map(t => t.toLowerCase()).filter(Boolean);
+  if (!productTokens.length || !coupangSet.size) return 0;
+  const common = productTokens.filter(t => coupangSet.has(t)).length;
+  return Math.round((common / productTokens.length) * 100);
+}
+
+type CoupangInfoRow = {
+  rowIdx: number;
+  registeredId: string;
+  optionId: string;
+  optionName: string;
+  exposedName: string;
+  opt1: string;
+  opt2: string;
+  opt3: string;
+  matchKey: string;
+  currentModelNo: string;
+};
+
+type InfoMatchResult = {
+  row: CoupangInfoRow;
+  matched: AnyRow | null;
+  score: number;
+  code: string;
+};
+
+function CoupangInfoPage({ source }: { source: AnyRow[] }) {
+  const [threshold, setThreshold] = useState(70);
+  const [fileBuf, setFileBuf] = useState<ArrayBuffer | null>(null);
+  const [parsedRows, setParsedRows] = useState<CoupangInfoRow[]>([]);
+  const [results, setResults] = useState<InfoMatchResult[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const parseFile = (buf: ArrayBuffer) => {
+    try {
+      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+      const ws = wb.Sheets['Template'];
+      if (!ws) { alert("'Template' 시트를 찾을 수 없습니다."); return; }
+      const allRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][];
+      const hi = allRows.findIndex(r => (r as any[]).includes('등록상품ID'));
+      if (hi < 0) { alert("헤더 행(등록상품ID)을 찾을 수 없습니다."); return; }
+      const h = allRows[hi] as string[];
+      const c = (n: string) => h.indexOf(n);
+      const rows: CoupangInfoRow[] = [];
+      for (let i = hi + 1; i < allRows.length; i++) {
+        const r = allRows[i];
+        const id = String(r[c('등록상품ID')] ?? '').trim();
+        if (!id) continue;
+        const en = String(r[c('쿠팡 노출상품명')] ?? '').trim();
+        const o1 = String(r[c('구매옵션값1')] ?? '').trim();
+        const o2 = String(r[c('구매옵션값2')] ?? '').trim();
+        const o3 = String(r[c('구매옵션값3')] ?? '').trim();
+        rows.push({
+          rowIdx: i,
+          registeredId: id,
+          optionId: String(r[c('옵션 ID')] ?? '').trim(),
+          optionName: String(r[c('등록 옵션명')] ?? '').trim(),
+          exposedName: en,
+          opt1: o1, opt2: o2, opt3: o3,
+          matchKey: buildMatchKey(en, o1, o2, o3),
+          currentModelNo: String(r[c('모델번호')] ?? '').trim(),
+        });
+      }
+      setParsedRows(rows);
+    } catch (e) {
+      console.error(e);
+      alert('파일 파싱 오류: ' + String(e));
+    }
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      const buf = evt.target?.result as ArrayBuffer;
+      setFileBuf(buf);
+      parseFile(buf);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  useEffect(() => {
+    if (!parsedRows.length) return;
+    setResults(parsedRows.map(row => {
+      let best: AnyRow | null = null;
+      let bestScore = 0;
+      source.forEach(p => {
+        const s = skuSimilarity(row.matchKey, p);
+        if (s > bestScore) { bestScore = s; best = p; }
+      });
+      return { row, matched: best, score: bestScore, code: (best as AnyRow)?.code ?? '' };
+    }));
+  }, [parsedRows, source]);
+
+  const updateCode = (idx: number, code: string) =>
+    setResults(prev => prev.map((r, i) => i === idx ? { ...r, code } : r));
+
+  const handleDownload = () => {
+    if (!fileBuf || !results.length) return;
+    try {
+      const wb = XLSX.read(new Uint8Array(fileBuf), { type: 'array' });
+      const ws = wb.Sheets['Template'];
+      const allRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }) as any[][];
+      const hi = allRows.findIndex(r => (r as any[]).includes('등록상품ID'));
+      const mCol = (allRows[hi] as string[]).indexOf('모델번호');
+      if (mCol < 0) { alert("모델번호 열을 찾을 수 없습니다."); return; }
+      results.forEach(({ row, code }) => {
+        if (!code) return;
+        const addr = XLSX.utils.encode_cell({ r: row.rowIdx, c: mCol });
+        ws[addr] = { v: code, t: 's' };
+      });
+      XLSX.writeFile(wb, '쿠팡상품정보_모델번호수정.xlsx');
+    } catch (e) {
+      console.error(e);
+      alert('다운로드 오류: ' + String(e));
+    }
+  };
+
+  const displayed = useMemo(
+    () => results.map(r => ({ ...r, needsReview: r.score < threshold })),
+    [results, threshold]
+  );
+  const autoN = displayed.filter(r => !r.needsReview).length;
+  const reviewN = displayed.filter(r => r.needsReview).length;
+
+  return (
+    <div className="max-w-[1280px] mx-auto px-6 py-8 space-y-6">
+      <section className={cx(card, "p-6 space-y-5")}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">쿠팡 상품정보 · 모델번호 SKU 매칭</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              쿠팡 노출상품명 + 구매옵션값을 조합해 내부 SKU코드와 매칭 후 모델번호 열에 채워 다운로드합니다.
+            </p>
+          </div>
+          {displayed.length > 0 && (
+            <div className="flex gap-2 shrink-0">
+              <Badge tone="green">자동 매칭 {autoN}개</Badge>
+              {reviewN > 0 && <Badge tone="orange">검토 필요 {reviewN}개</Badge>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-6">
+          <Field label="쿠팡상품정보 엑셀 업로드 (.xlsx)">
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
+            <Btn tone="blue" variant="outline" onClick={() => fileRef.current?.click()}>
+              📂 파일 선택
+            </Btn>
+          </Field>
+
+          <Field label={`검토 필요 기준 — 유사도 ${threshold}% 미만`}>
+            <div className="flex items-center gap-3">
+              <input
+                type="range" min={0} max={100} value={threshold}
+                onChange={e => setThreshold(Number(e.target.value))}
+                className="w-36 accent-blue-600"
+              />
+              <input
+                type="number" min={0} max={100} value={threshold}
+                onChange={e => setThreshold(Number(e.target.value))}
+                className={cx(inputBase, "w-20")}
+              />
+              <span className="text-sm text-slate-500">%</span>
+            </div>
+          </Field>
+
+          {displayed.length > 0 && (
+            <Btn tone="green" onClick={handleDownload}>📥 수정 파일 다운로드</Btn>
+          )}
+        </div>
+      </section>
+
+      {displayed.length > 0 && (
+        <section className={cx(card, "overflow-hidden")}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-separate border-spacing-0">
+              <thead>
+                <tr className="bg-slate-50/80 text-slate-600 text-xs font-semibold">
+                  <th className="border-b border-slate-200 px-4 py-3 text-left whitespace-nowrap">상태</th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left whitespace-nowrap">쿠팡 노출상품명</th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left whitespace-nowrap">구매옵션값</th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left whitespace-nowrap">매칭용 이름</th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left whitespace-nowrap">매칭 내부제품</th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-center whitespace-nowrap">유사도</th>
+                  <th className="border-b border-slate-200 px-4 py-3 text-left whitespace-nowrap">모델번호(SKU)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayed.map((r, i) => (
+                  <tr
+                    key={i}
+                    className={cx(
+                      "border-b border-slate-100 transition",
+                      r.needsReview ? "bg-amber-50/60 hover:bg-amber-100/60" : "hover:bg-blue-50/30"
+                    )}
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {r.needsReview
+                        ? <Badge tone="orange">검토 필요</Badge>
+                        : <Badge tone="green">자동 매칭</Badge>}
+                    </td>
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <div className="truncate text-slate-700 text-xs" title={r.row.exposedName}>{r.row.exposedName}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{r.row.optionName}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">
+                      {[r.row.opt1, r.row.opt2, r.row.opt3].filter(Boolean).join(' / ')}
+                    </td>
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <div className="truncate text-xs text-slate-500" title={r.row.matchKey}>{r.row.matchKey}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.matched ? (
+                        <div>
+                          <div className="font-semibold text-slate-900 text-xs">{(r.matched as AnyRow).code}</div>
+                          <div className="text-xs text-slate-500 truncate max-w-[180px]" title={(r.matched as AnyRow).name}>
+                            {(r.matched as AnyRow).name}
+                          </div>
+                        </div>
+                      ) : <span className="text-slate-400 text-xs">-</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cx(
+                        "font-bold text-sm",
+                        r.score >= threshold ? "text-emerald-600" :
+                        r.score >= Math.round(threshold * 0.7) ? "text-amber-600" : "text-rose-600"
+                      )}>{r.score}%</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        className={cx(inputBase, "w-36 text-sm")}
+                        value={r.code}
+                        onChange={e => updateCode(i, e.target.value)}
+                        placeholder="SKU 코드"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+
 /* ───────────────────────── 루트 ───────────────────────── */
 
 function App() {
-  const [tab, setTab] = useState<"list" | "estimate" | "price" | "option">("price");
+  const [tab, setTab] = useState<Tab>("price");
   const [items, setItems] = useState<AnyRow[]>([]);
   const [columns, setColumns] = useState<ColumnMeta[]>([]);
   const [status, setStatus] = useState("초기화…");
@@ -468,7 +746,8 @@ function App() {
               tab === "list" ? "제품 리스트" :
               tab === "estimate" ? "견적서 작성" :
               tab === "price" ? "플레이오토 · 판매가 수정" :
-              "플레이오토 · 옵션가 수정"
+              tab === "option" ? "플레이오토 · 옵션가 수정" :
+              "쿠팡 · 상품정보 변경"
             }
             right={<Badge tone="slate">{status}</Badge>}
           />
@@ -477,6 +756,7 @@ function App() {
           {tab === "estimate" && <EstimatePage source={items} />}
           {tab === "price" && <UploadCenter source={items} mode="price" />}
           {tab === "option" && <UploadCenter source={items} mode="option" />}
+          {tab === "coupang-info" && <CoupangInfoPage source={items} />}
         </div>
       </div>
     </div>
